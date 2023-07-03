@@ -14,7 +14,7 @@
 # Same approach for the raw PID 0xD8. This corresponds to a PID 0x18
 # This module has been optimised for high performance.  
 
-from tools import calculate_checksum, set_led, toggle_led, dtoggle_led
+from tools import calculate_checksum, PIN_MAP
 import inetboxapp
 import logging
 
@@ -33,7 +33,6 @@ class Lin:
     cnt_in = 0
 # Same approach for the raw PID 0xD8. This corresponds to a PID 0x18
     d8_alive = False
-    set_led("D8", False)
 
 
     # Only for display control / slow event timing
@@ -53,20 +52,22 @@ class Lin:
     BUFFER_PREAMBLE = bytes([0x00, 0x00, 0x22, 0xFF, 0xFF, 0xFF, 0x54, 0x01])
 
 
-    BUFFER_HEADER_RECV  = bytes([0x14, 0x33])
-    BUFFER_HEADER_TIMER = bytes([0x18, 0x3D])
-    BUFFER_HEADER_02    = bytes([0x02, 0x0D])
-    BUFFER_HEADER_03    = bytes([0x0A, 0x15])
-    BUFFER_HEADER_WRITE = bytes([0x0C, 0x32])
+    # BUFFER_HEADER_RECV  = bytes([0x14, 0x33])
+    # BUFFER_HEADER_TIMER = bytes([0x18, 0x3D])
+    # BUFFER_HEADER_02    = bytes([0x02, 0x0D])
+    # BUFFER_HEADER_03    = bytes([0x0A, 0x15])
+    # BUFFER_HEADER_WRITE = bytes([0x0C, 0x32])
 
 
-    def __init__(self, serial, lin_debug, inet_debug):
+    def __init__(self, serial, pin_map, lin_debug, inet_debug):
         self.loop_state = False
         self.serial = serial
+    #    self.pin_map = pin_map
         self.cnt_rows = 1
         if lin_debug:
             self.log.setLevel(logging.DEBUG)
         self.app = inetboxapp.InetboxApp(inet_debug)
+    #    self.pin_map.set_led("lin_led", False)
 
     def response_waiting(self):
         return len(self.ts_response_buffer)
@@ -88,7 +89,7 @@ class Lin:
         self.serial.write(databytes)
         self.serial.flush()
         self.log.debug("out > " + str(databytes.hex(" ")))
-        toggle_led("D8")
+        #self.pin_map.toggle_led("lin_led")
 
 
     def prepare_tl_str_response(self, message_str, info_str):
@@ -115,7 +116,7 @@ class Lin:
     def no_answer(self, s, p):
         if self.stop_async:
             self.stop_async = self.response_waiting()
-        if self.app.upload_buffer: self.updates_to_send = True
+        if self.app.upload_buffer or self.app.upload02_buffer: self.updates_to_send = True
         if p.startswith("_"): return
         self.log.debug(p)
 
@@ -160,9 +161,13 @@ class Lin:
 #         self.prepare_tl_response(bytes.fromhex("03 25 00 00 00 00 00 00 d7".replace(" ","")))
 #         self.prepare_tl_response(bytes.fromhex("03 26 00 00 00 00 00 00 d6".replace(" ","")))
 
-        self.cmd_buf = self.app._get_status_buffer_for_writing()
-        self.stop_async = True
-        self.app.upload_buffer = False
+#        self.cmd_buf = self.app._get_status_buffer_for_writing() #+self.app._get_status_buffer1_for_writing()
+        if self.app.upload_buffer:
+            self.cmd_buf = self.app._get_status_buffer_for_writing()
+            self.app.upload_buffer = False
+        if self.app.upload02_buffer:
+            self.cmd_buf = self.app._get_status_buffer1_for_writing()
+            self.app.upload02_buffer = False
 
         if (self.cmd_buf == None) or (self.cmd_buf == {}):
             self.log.debug("cmd_buffer is empty")
@@ -186,7 +191,7 @@ class Lin:
             else:    
                 self.app.status["alive"][0] = "OFF"
             self.d8_alive = False
-            set_led("D8", False)
+#            self.pin_map.set_led("lin_led", False)
 
 
 
@@ -197,7 +202,7 @@ class Lin:
         # So there is a much higher probability for synchronizing
         if not(self.serial.any()):
             return
-        dtoggle_led("D8")
+#        self.pin_map.dtoggle_led("lin_led")
         line = self.serial.read(1)
         if self.loop_state: # this means level 2
             if line[0] == 0x55: # here it is clear, we saw a correct synchronizing
@@ -222,7 +227,7 @@ class Lin:
             self.d8_alive = True
             self.app.status["alive"][1] = True 
             self.app.status["alive"][0] = "ON"
-            set_led("D8", True)
+#            self.pin_map.set_led("lin_led", True)
             self.log.debug(f"in < {line.hex(" ")}")
             if self.app.upload_buffer: self.updates_to_send = True
             if self.updates_to_send:
