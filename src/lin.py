@@ -116,7 +116,7 @@ class Lin:
     def no_answer(self, s, p):
         if self.stop_async:
             self.stop_async = self.response_waiting()
-        if self.app.upload_buffer or self.app.upload02_buffer: self.updates_to_send = True
+        if self.app.upload_buffer: self.updates_to_send = True
         if p.startswith("_"): return
         self.log.debug(p)
 
@@ -165,9 +165,6 @@ class Lin:
         if self.app.upload_buffer:
             self.cmd_buf = self.app._get_status_buffer_for_writing()
             self.app.upload_buffer = False
-        if self.app.upload02_buffer:
-            self.cmd_buf = self.app._get_status_buffer1_for_writing()
-            self.app.upload02_buffer = False
 
         if (self.cmd_buf == None) or (self.cmd_buf == {}):
             self.log.debug("cmd_buffer is empty")
