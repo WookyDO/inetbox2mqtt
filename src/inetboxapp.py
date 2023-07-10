@@ -530,18 +530,25 @@ class InetboxApp:
             raise Exception(f"Conversion function not defined - this key {key} isn't writeable?")
 #        self.log.info(f"Setting {key} to {value}")
         self.log.debug(f"set_status: {key}:{value}")
-        self.status[key] = [self.STATUS_CONVERSION_FUNCTIONS[key][1](value), True]
-        if key in list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_02_STATUS]):
-            self.log.debug(f"aircon: {key}:{value}")
-            self.upload_buffer = True
-            self.upload_aircon = True
-            self.log.debug(f"aircon: {key}:{value}")
-        print("heater:", list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]))
-        if key in list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]):
+
+#        self.upload_buffer = True
+        print("Status:",self.status)
+        map_key = []
+        for k in self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]:
+            map_key += [self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS][k][2]]
+        if key in map_key:
             self.log.debug(f"heater: {key}:{value}")
             self.upload_buffer = True
             self.upload_heater = True
 
+        map_key = []
+        for k in self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_02_STATUS]:
+            map_key += [self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_02_STATUS][k][2]]
+        if key in map_key:
+            self.log.debug(f"aircon: {key}:{value}")
+            self.upload_buffer = True
+            self.upload_aircon = True
+            
 
 # Status-Dump - with False, it sends all status-values
 # with True it sends only a list of changed values - but reset the chance-flag
