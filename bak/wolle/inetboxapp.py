@@ -97,14 +97,12 @@ class InetboxApp:
     STATUS_BUFFER_HEADER_04 = bytes([0x12, 0x35]) #Aventa Aircon Status
     
     STATUS_BUFFER_HEADER_WRITE_STATUS = bytes([0x0C, 0x32])
-    STATUS_BUFFER_HEADER_WRITE_02_STATUS = bytes([0x0C, 0x34]) #Aventa Aircon Write
 
 
 # Problem is, that micropython doesn't hold the correct order of the keys (like CPython > 3.7)
 # Workaround is 
 
     STATUS_BUFFER_TYPES = {
-        
         STATUS_BUFFER_HEADER_RECV_STATUS: {
             # mapping-table: key, subject, byte-len, storage
                     1: ["dummy", 1, False],
@@ -125,7 +123,7 @@ class InetboxApp:
                    16: ["recv_status_u11", 1, False],
                    17: ["recv_status_u12", 1, False],
                    18: ["recv_status_u13", 1, False],
-                   19: ["recv_status_u14", 1, False],
+                   19: ["recv_status_u14", 1, False]
         },
         STATUS_BUFFER_HEADER_WRITE_STATUS: {
             # mapping-table: key, mapping-key, byte-len
@@ -139,21 +137,7 @@ class InetboxApp:
                     8: ["el_power_level", 2, "el_power_level"],
                     9: ["energy_mix", 1, "energy_mix"],
                    10: ["energy_mix", 1, "energy_mix"],
-                   11: ["dummy", 12, ""],
-
-        },
-        STATUS_BUFFER_HEADER_WRITE_02_STATUS: {  # AVENTA-Write-Commands
-            # mapping-table: key, mapping-key, byte-len
-                    1: ["command_counter", 1, "command_counter"], 
-                    2: ["checksum", 1, "checksum"],
-                    3: ["aircon_operating_mode", 1, "aircon_operating_mode"],
-                    4: ["dummy", 1, "", 0],
-                    5: ["aircon_vent_mode", 1, "aircon_vent_mode"],
-                    6: ["aircon_on", 1, "aircon_on"],
-                    7: ["target_temp_aircon", 2, "target_temp_aircon"],
-                    8: ["dummy", 2, "", 0],
-                    9: ["dummy", 1, "", 0],
-                    10: ["dummy", 16, "", 0],
+                   11: ["dummy", 12, ""]
 
         },
         STATUS_BUFFER_HEADER_TIMER: {
@@ -269,22 +253,18 @@ class InetboxApp:
         "timer_stop_minutes": (int, int,),
         "timer_stop_hours": (int, int,),
         "clock": (cnv.clock_to_string, None,),
-        "display": (str, None),
-        "aircon_on": (int, int)
+        "display": (str, None)
     }
 
 
     status = {'command_counter': [1, False], 'alive': ["OFF", True], 'target_temp_water': [0, True], 'checksum': [0, False],
               'target_temp_room': [0, True], 'heating_mode': [0, True], 'el_power_level': [0, True],
               'energy_mix': [1, True], 'current_temp_water': [0, True], 'current_temp_room': [0, True],
-              'operating_status': [0, True], 'error_code': [0, False], 'aircon_operating_mode': [5, True],
-              'aircon_vent_mode': [114, True], 'target_temp_aircon': [2990, True], 'aircon_on': [1, True]}
+              'operating_status': [0, True], 'error_code': [0, False] }
 
     status_updated = False
 
     upload_buffer = False
-    upload_heater = False
-    upload_aircon = False
 
     display_status = {}
     log = logging.getLogger(__name__)
@@ -387,7 +367,7 @@ class InetboxApp:
         
         status_buffer_map = self.STATUS_BUFFER_TYPES[buf_id]
         parsed_status_buffer = {}
-
+        print (status_buffer_map)
         val = 0
         
         keys = list(status_buffer_map.keys())
@@ -399,11 +379,14 @@ class InetboxApp:
                 status_key = status_buffer_map[key][0]
                 if (status_key == "display"):
                     parsed_status_buffer[status_key] = [status_buffer[val_a:val].hex(" "), True]
+                    print ("Display")
+                    print (parsed_status_buffer[status_key])
                 else:                    
                     parsed_status_buffer[status_key] = [int.from_bytes(status_buffer[val_a:val],"little"), True]
+                    print ("key: {}, status_key: {}, val_a: {}, val: {}, parsed_status_buffer[status_key]: {}".format(key, status_key, val_a, val, parsed_status_buffer[status_key]))
         
         self.status.update(parsed_status_buffer)
-#        print(self.status)
+        print(self.status) ##added for Debug
         
 
     def _get_status_buffer_for_writing(self):
@@ -412,12 +395,8 @@ class InetboxApp:
         if not self.upload_buffer:
             return None
         
-        if self.upload_heater:
-            status_buffer_map = self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]
-        elif self.upload_aircon:
-            status_buffer_map = self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_02_STATUS]
+        status_buffer_map = self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]
         
-
         # increase output message counter
         self.status["command_counter"] = [(self.status["command_counter"][0] + 1) % 0xFF, True]
         self.status["checksum"] = [0, True]
@@ -443,22 +422,13 @@ class InetboxApp:
         self.log.debug(f"result of status-transfer: {binary_buffer_contents.hex(" ")}")
 
 # calculate checksum
-        if self.upload_heater:
-            self.status["checksum"] = [calculate_checksum(
-                (
-                    self.STATUS_BUFFER_PREAMBLE
-                    + self.STATUS_BUFFER_HEADER_WRITE_STATUS
-                    + binary_buffer_contents
-                )[self.STATUS_HEADER_CHECKSUM_START :]  
-            ), True]
-        elif self.upload_aircon:
-            self.status["checksum"] = [calculate_checksum(
-                (
-                    self.STATUS_BUFFER_PREAMBLE
-                    + self.STATUS_BUFFER_HEADER_WRITE_02_STATUS
-                    + binary_buffer_contents
-                )[self.STATUS_HEADER_CHECKSUM_START :]  
-            ), True]
+        self.status["checksum"] = [calculate_checksum(
+            (
+                self.STATUS_BUFFER_PREAMBLE
+                + self.STATUS_BUFFER_HEADER_WRITE_STATUS
+                + binary_buffer_contents
+            )[self.STATUS_HEADER_CHECKSUM_START :]  
+        ), True]
 
 #        try:
         binary_buffer_contents = bytearray(0)
@@ -474,14 +444,9 @@ class InetboxApp:
 #             self.updates_to_send = False
 #             return None
 
-        self.upload_buffer = False
+        self.upload_buffer = True
 
-        if self.upload_heater:
-            send_buffer = self.STATUS_BUFFER_PREAMBLE + self.STATUS_BUFFER_HEADER_WRITE_STATUS + binary_buffer_contents
-            self.upload_heater = False
-        elif self.upload_aircon:
-            send_buffer = self.STATUS_BUFFER_PREAMBLE + self.STATUS_BUFFER_HEADER_WRITE_02_STATUS + binary_buffer_contents
-            self.upload_aircon = False
+        send_buffer = self.STATUS_BUFFER_PREAMBLE + self.STATUS_BUFFER_HEADER_WRITE_STATUS + binary_buffer_contents
 
         s = [
             bytearray([0x03, 0x10, 0x29, 0xFA, 0x00, 0x1F, 0x00, 0x1E]),
@@ -498,7 +463,6 @@ class InetboxApp:
          self.log.debug(str(q.hex(" ")))
         
         return s
-
     
     # This is the small api to the mqtt-engine
     # I changed the logic slightly, in the MAP-Definition it can be changed
@@ -531,22 +495,13 @@ class InetboxApp:
 #        self.log.info(f"Setting {key} to {value}")
         self.log.debug(f"set_status: {key}:{value}")
         self.status[key] = [self.STATUS_CONVERSION_FUNCTIONS[key][1](value), True]
-        if key in list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_02_STATUS]):
-            self.log.debug(f"aircon: {key}:{value}")
-            self.upload_buffer = True
-            self.upload_aircon = True
-            self.log.debug(f"aircon: {key}:{value}")
-        print("heater:", list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]))
-        if key in list(self.STATUS_BUFFER_TYPES[self.STATUS_BUFFER_HEADER_WRITE_STATUS]):
-            self.log.debug(f"heater: {key}:{value}")
-            self.upload_buffer = True
-            self.upload_heater = True
+        self.upload_buffer = True
 
 
 # Status-Dump - with False, it sends all status-values
 # with True it sends only a list of changed values - but reset the chance-flag
     def get_all(self, only_updates):
-#        print("Status:", self.status)
+        print("Status:", self.status)
         if not(only_updates):
             self.status_updated = False
             return {key: self.get_status(key) for key in self.status.keys()}
